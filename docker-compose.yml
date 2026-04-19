@@ -1,0 +1,74 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    command: start-dev
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: password
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: http://keycloak.127.0.0.1.nip.io:9999
+      KC_HOSTNAME_ADMIN: http://keycloak.127.0.0.1.nip.io:9999
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+    ports:
+      - "9999:8080"
+    depends_on:
+      - postgres
+
+  keycloak-init:
+    image: curlimages/curl:8.7.1
+    entrypoint: /bin/sh
+    command: /init-keycloak.sh
+    volumes:
+      - ./init-keycloak-final.sh:/init-keycloak.sh:ro
+    depends_on:
+      - keycloak
+    networks:
+      - default
+
+  webui:
+    image: ghcr.io/open-webui/open-webui:latest
+    command:
+      - /bin/sh
+      - -c
+      - >
+        sed -i "s/, 'expires': cookie_expires//g" /app/backend/open_webui/utils/oauth.py &&
+        exec bash start.sh
+    ports:
+      - "3000:8080"
+    extra_hosts:
+      - "keycloak.127.0.0.1.nip.io:host-gateway"
+    environment:
+      # OpenAI Configuration
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+
+      # Keycloak OIDC Configuration for Open WebUI
+      OPENID_PROVIDER_URL: http://keycloak.127.0.0.1.nip.io:9999/realms/master/.well-known/openid-configuration
+      OPENID_REDIRECT_URI: http://localhost:3000/oauth/oidc/callback
+      WEBUI_AUTH_SIGNOUT_REDIRECT_URL: http://localhost:3000/auth
+      OAUTH_CLIENT_ID: open-webui
+      OAUTH_CLIENT_SECRET: PJa2eqYvlvRKT7kTEuzGsXpkg3fzPohB
+      OAUTH_PROVIDER_NAME: Keycloak
+      ENABLE_OAUTH_SIGNUP: "true"
+      # Force direct redirect to Keycloak — no Open WebUI login form
+      ENABLE_LOGIN_FORM: "false"
+    depends_on:
+      keycloak:
+        condition: service_started
+      keycloak-init:
+        condition: service_completed_successfully
+
+volumes:
+  postgres_data:
