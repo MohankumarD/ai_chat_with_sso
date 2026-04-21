@@ -43,7 +43,7 @@ The most important detail is setting `post.logout.redirect.uris` on the client. 
 
 ---
 
-## The Logout Bug
+## The Logout Bug [Open WebUI v0.8.12 has a bug]
 
 Everything worked fine at first glance: login redirected to Keycloak, authentication completed, and the user landed in Open WebUI. But clicking **Log Out** in the WebUI did nothing useful — it simply cleared the local session and reloaded the Open WebUI login page, leaving the Keycloak SSO session fully alive. A refresh would auto-log the user back in silently.
 
